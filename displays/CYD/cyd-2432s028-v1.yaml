@@ -1,0 +1,255 @@
+# Standaard ESP en HA instellingen 
+# Info om board werkende te krijgen via: https://github.com/BOlaerts/ESP32-2432s028
+substitutions:
+  devicename: "esp32-2432s028"
+  static_ip: x.x.x.x
+  gateway: x.x.x.x
+  subnet: 255.255.255.0
+
+# Basis configuratie
+esphome:
+  name: $devicename
+  platformio_options:
+      board_build.arduino.memory_type: qio_opi
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# WiFi instellingen
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: $static_ip
+    gateway: $gateway
+    subnet: $subnet
+
+web_server:
+  port: 80
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_key
+
+debug:
+
+# Two separate SPI busses are being used for the display and the touchscreen.
+spi:
+  - id: lcd
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin: GPIO12
+  - id: touch
+    clk_pin: GPIO25
+    mosi_pin: GPIO32
+    miso_pin: GPIO39
+    
+# The esp32-2432s028 has an ili9341 display that can be used via the lcd SPI bus:
+display:
+  - platform: ili9xxx
+    id: main_display
+    model: ILI9341
+    spi_id: lcd
+    cs_pin: 15
+    dc_pin: 2
+    invert_colors: false
+    auto_clear_enabled: false
+    show_test_card: true
+    update_interval: never
+    rotation: 180
+
+# Define pins for backlight display and back LED1
+output:
+  - platform: ledc
+    pin: GPIO21
+    id: former_led_pin
+  - platform: ledc
+    id: output_red
+    pin: GPIO4
+    inverted: true
+  - platform: ledc
+    id: output_green
+    pin: GPIO16
+    inverted: true
+  - platform: ledc
+    id: output_blue
+    pin: GPIO17
+    inverted: true
+
+# Define a monochromatic, dimmable light for the backlight
+light:
+  - platform: monochromatic
+    output: former_led_pin
+    name: "Display Backlight"
+    id: back_light
+    restore_mode: ALWAYS_ON
+# LED light on the back of the board
+  - platform: rgb
+    name: LED
+    id: led
+    red: output_red
+    green: output_green
+    blue: output_blue
+    restore_mode: ALWAYS_OFF
+    on_state: 
+    - lambda: |-
+          ESP_LOGI("light", "LED button is clicked: red = %d, green = %d, blue = %d", 
+          (int)id(led).current_values.get_red(),
+          (int)id(led).current_values.get_green(),
+          (int)id(led).current_values.get_blue() );
+    on_turn_off: 
+      then:
+      - lambda: |-
+          ESP_LOGI("light", "LED is off");
+          id(led).publish_state();
+
+    on_turn_on: 
+      then:
+      - lambda: |-
+          ESP_LOGI("light", "LED is on" );
+
+
+# To add touch functionalities, a touchscreen component should be added via the touch SPI bus:
+touchscreen:
+  platform: xpt2046
+  spi_id: touch
+  cs_pin: 33
+  interrupt_pin: 36
+  update_interval: 50ms
+  threshold: 400
+  calibration:
+    x_min: 280
+    x_max: 3860
+    y_min: 340
+    y_max: 3860
+  transform:
+    mirror_x: false
+    mirror_y: false
+    swap_xy: false
+  on_touch:
+    - lambda: |-
+          ESP_LOGI("cal", "x=%d, y=%d, x_raw=%d, y_raw=%0d",
+              touch.x,
+              touch.y,
+              touch.x_raw,
+              touch.y_raw
+              );
+
+text_sensor:
+  - platform: template
+    # name: Uptime Human Readable
+    id: uptime_human
+    icon: mdi:clock-start
+    internal: True
+
+  - platform: template
+    name: "Dynamic Text"
+    id: dynamic_text
+    lambda: |-
+      char buffer[20];
+      sprintf(buffer, "Temp: %.1f°C", id(living_temperature).state);
+      return std::string(buffer);
+    update_interval: 10s
+
+  - platform: debug
+    device:
+      name: "Device Info"
+    reset_reason:
+      name: "Reset Reason"
+
+  - platform: wifi_info
+    ip_address:
+      name: ESP IP Address
+      id: ip_address
+      on_value: 
+        then:
+          - lvgl.label.update:
+              id: lbl2
+              text:
+                format: "%s"
+                args: [ 'id(ip_address).get_state().c_str()' ]
+    ssid:
+      name: ESP Connected SSID
+    bssid:
+      name: ESP Connected BSSID
+    mac_address:
+      name: ESP Mac Wifi Address
+    scan_results:
+      name: ESP Latest Scan Results
+    dns_address:
+      name: ESP DNS Address
+
+binary_sensor:
+  - platform: status
+    name: "Platfom Status"
+    id: system_status
+    on_state: 
+      then:
+        - logger.log: 
+            format: "Platform status is %s"
+            args: 'id(system_status)'
+
+
+sensor:
+  - platform: homeassistant
+    id: living_temperature
+    entity_id: sensor.meter_living
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl1
+            text:
+              format: "%.2f"
+              args: [ 'id(living_temperature).get_state()' ]
+
+
+lvgl:
+  align: center
+  buffer_size: 25%
+  disp_bg_color: black
+  text_color: white
+  widgets:
+    - obj:
+        width: 320
+        height: 480
+        layout:
+          type: grid
+          grid_rows: [fr(10), fr(40), fr(10), fr(40)]
+          grid_columns: [fr(50), fr(50)]
+        widgets:
+          - label:
+              id: lbl1
+              text: "First label"
+              grid_cell_row_pos: 0
+              grid_cell_column_pos: 0
+          - button:
+#              text: "Button 1"
+              grid_cell_row_pos: 0
+              grid_cell_column_pos: 1
+              widgets:
+                - label:
+                    id: cov_up_east
+                    align: CENTER
+                    text: "\U000F005D"
+              on_change:
+                then:
+                  - lambda: lv_label_set_text(id(lbl1),"button clicked");
+          - label:
+              id: lbl2
+              text: "\uF013"
+              grid_cell_row_pos: 2
+              grid_cell_column_pos: 0
+              grid_cell_x_align: STRETCH
+          - button:
+#              text: "Button 2"
+              grid_cell_row_pos: 2
+              grid_cell_column_pos: 1
+              grid_cell_x_align: STRETCH
