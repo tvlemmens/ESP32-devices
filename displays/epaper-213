@@ -1,0 +1,133 @@
+# Standaard ESP en HA instellingen 
+substitutions:
+  devicename: 213-e-paper
+  friendly_name: 2.13 e-Paper
+  static_ip: 10.0.0.63
+
+# Basis configuratie
+esphome:
+  name: ${devicename}
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Load ESP32 device defaults via common base file
+packages:   # as a list
+  - !include common/base.yaml
+
+# Enable OTA updates
+ota:
+  platform: esphome
+
+wifi:
+  id: wifi_id
+
+# Home Assistant sensors
+sensor:
+  - platform: homeassistant
+    id: living_temperature
+    entity_id: sensor.diyless_thermostat_ble_sensor_temperature
+    on_value: 
+      then:
+        - component.update: epd
+        # this will update the e-paper every time the temperatures updates
+
+
+
+### DISPLAY SECTION ###
+### CONNECTORS
+# VCC   3v3
+# GND   gnd
+# DIN   15    = SPI mosi pin (spi.mosi_pin)
+# CLK   16    = SPI clock pin (spi.clk_pin)
+# CS    17
+# DC    18
+# RST   19
+# BUSY  21
+
+# Example configuration entry - single controller
+spi:
+  clk_pin: 16
+  mosi_pin: 15
+
+display:
+  - platform: waveshare_epaper
+    id: epd
+    cs_pin: 17
+    dc_pin: 18
+    busy_pin: 21
+    reset_pin: 19
+    model: 2.13inv3 # Strangely, this is the version on which the screen worked, even though it's a v2
+    update_interval: 5min # update set high enough to avoid flickering of the screen
+    full_update_every: 30
+    rotation: 90
+    lambda: |-
+      // Tijd linksboven
+      auto time = id(sntp_time).now();
+      it.strftime(0, 0, id(font20), TextAlign::TOP_LEFT, "%a %d %b %Y", id(sntp_time).now());
+      it.strftime(250, 0, id(font30), TextAlign::TOP_RIGHT, "%H:%M", id(sntp_time).now());
+           
+      it.print(0, 30, id(font20), "Temperature");
+
+
+      // Home Assistant sensor display
+      // it.printf(0, 50, id(font14), "Living:    %.1f°C", id(living_temperature).state);
+
+      // Below code creates a 'rounded' rectangle, created with lines only
+      // as the rendering engine has no function for a partial circle or rounded rectangle
+      // Badge position and size
+      int x = 1;
+      int y = 70;
+      int w = 120;
+      int h = 50;
+      int r = 12;  // corner radius
+
+      // Top and bottom edges
+      it.line(x + r, y,         x + w - r, y);
+      it.line(x + r, y + h,     x + w - r, y + h);
+
+      // Left and right edges
+      it.line(x,     y + r,     x,         y + h - r);
+      it.line(x + w, y + r,     x + w,     y + h - r);
+
+      // Top-left corner (6 segments)
+      it.line(x + r,     y,         x + r - 4, y + 2);
+      it.line(x + r - 4, y + 2,     x + r - 7, y + 5);
+      it.line(x + r - 7, y + 5,     x + r - 9, y + 9);
+
+      // Top-right corner
+      it.line(x + w - r,     y,         x + w - r + 4, y + 2);
+      it.line(x + w - r + 4, y + 2,     x + w - r + 7, y + 5);
+      it.line(x + w - r + 7, y + 5,     x + w - r + 9, y + 9);
+
+      // Bottom-left corner
+      it.line(x + r,     y + h,         x + r - 4, y + h - 2);
+      it.line(x + r - 4, y + h - 2,     x + r - 7, y + h - 5);
+      it.line(x + r - 7, y + h - 5,     x + r - 9, y + h - 9);
+
+      // Bottom-right corner
+      it.line(x + w - r,     y + h,         x + w - r + 4, y + h - 2);
+      it.line(x + w - r + 4, y + h - 2,     x + w - r + 7, y + h - 5);
+      it.line(x + w - r + 7, y + h - 5,     x + w - r + 9, y + h - 9);
+
+      // Temperature text
+      it.printf(x + w/2, y + h/2, id(font20), TextAlign::CENTER, "%.1f°C", id(living_temperature).state);
+
+
+font:
+  - file: "gfonts://Roboto"
+    id: font30
+    size: 30
+  - file: "gfonts://Roboto"
+    id: font20
+    size: 20
+  - file: "gfonts://Roboto"
+    id: font14
+    size: 14
+  - file: "gfonts://Roboto"
+    id: font12
+    size: 12
+  - file: "gfonts://Roboto"
+    id: font11
+    size: 11
