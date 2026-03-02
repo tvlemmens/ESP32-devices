@@ -1,0 +1,338 @@
+# Standaard ESP en HA instellingen 
+# Info om board werkende te krijgen via: https://github.com/BOlaerts/ESP32-2432s028
+substitutions:
+  devicename: "esp32-2432s028"
+  static_ip: 10.0.0.61
+
+# Basis configuratie
+esphome:
+  name: ${devicename}
+  platformio_options:
+      board_build.arduino.memory_type: qio_opi
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# WiFi instellingen
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: ${static_ip}
+    gateway: !secret gateway_address
+    subnet: !secret subnet_address
+
+web_server:
+  port: 80
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret api_encryption_key
+
+debug:
+
+# Two separate SPI busses are being used for the display and the touchscreen.
+spi:
+  - id: lcd
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin: GPIO12
+  - id: touch
+    clk_pin: GPIO25
+    mosi_pin: GPIO32
+    miso_pin: GPIO39
+    
+# The esp32-2432s028 has an ili9341 display that can be used via the lcd SPI bus:
+display:
+  - platform: ili9xxx
+    id: main_display
+    model: ILI9341
+    spi_id: lcd
+    cs_pin: 15
+    dc_pin: 2
+    invert_colors: false
+    auto_clear_enabled: false
+    show_test_card: true
+    update_interval: never
+    rotation: 180
+
+# Define pins for backlight display and back LED1
+output:
+  - platform: ledc
+    pin: GPIO21
+    id: former_led_pin
+  - platform: ledc
+    id: output_red
+    pin: GPIO4
+    inverted: true
+  - platform: ledc
+    id: output_green
+    pin: GPIO16
+    inverted: true
+  - platform: ledc
+    id: output_blue
+    pin: GPIO17
+    inverted: true
+
+# Define a monochromatic, dimmable light for the backlight
+light:
+  - platform: monochromatic
+    output: former_led_pin
+    name: "Display Backlight"
+    id: back_light
+    restore_mode: ALWAYS_ON
+# LED light on the back of the board
+  - platform: rgb
+    name: LED
+    id: led
+    red: output_red
+    green: output_green
+    blue: output_blue
+    restore_mode: ALWAYS_OFF
+    on_state: 
+    - lambda: |-
+          ESP_LOGI("light", "LED button is clicked: red = %d, green = %d, blue = %d", 
+          (int)id(led).current_values.get_red(),
+          (int)id(led).current_values.get_green(),
+          (int)id(led).current_values.get_blue() );
+    on_turn_off: 
+      then:
+      - lambda: |-
+          ESP_LOGI("light", "LED is off");
+          id(led).publish_state();
+
+    on_turn_on: 
+      then:
+      - lambda: |-
+          ESP_LOGI("light", "LED is on" );
+
+
+# To add touch functionalities, a touchscreen component should be added via the touch SPI bus:
+touchscreen:
+  id: this_touchscreen
+  platform: xpt2046
+  spi_id: touch
+  cs_pin: 33
+  interrupt_pin: 36
+  update_interval: 50ms
+  threshold: 400
+  calibration:
+    x_min: 280
+    x_max: 3860
+    y_min: 340
+    y_max: 3860
+  transform:
+    mirror_x: false
+    mirror_y: true
+    swap_xy: false
+  on_touch:
+    - lambda: |-
+          ESP_LOGI("cal", "x=%d, y=%d, x_raw=%d, y_raw=%0d",
+              touch.x,
+              touch.y,
+              touch.x_raw,
+              touch.y_raw
+              );
+
+text_sensor:
+  - platform: template
+    # name: Uptime Human Readable
+    id: uptime_human
+    icon: mdi:clock-start
+    internal: True
+
+  - platform: template
+    name: "Dynamic Text"
+    id: dynamic_text
+    lambda: |-
+      char buffer[20];
+      sprintf(buffer, "Temp: %.1f°C", id(living_temperature).state);
+      return std::string(buffer);
+    update_interval: 10s
+
+
+  - platform: debug
+    device:
+      name: "Device Info"
+    reset_reason:
+      name: "Reset Reason"
+
+  - platform: wifi_info
+    ip_address:
+      name: ESP IP Address
+      id: ip_address
+    ssid:
+      name: ESP Connected SSID
+    bssid:
+      name: ESP Connected BSSID
+    mac_address:
+      name: ESP Mac Wifi Address
+    scan_results:
+      name: ESP Latest Scan Results
+    dns_address:
+      name: ESP DNS Address
+
+binary_sensor:
+  - platform: status
+    name: "Platfom Status"
+    id: system_status
+    on_state: 
+      then:
+        - logger.log: 
+            format: "Platform status is %s"
+            args: 'id(system_status)'
+
+
+sensor:
+  - platform: homeassistant
+    id: living_temperature
+    entity_id: sensor.meter_living
+  - platform: homeassistant
+    id: solar_power
+    entity_id: sensor.solar_panel_power
+    on_value: 
+      then:
+        - lvgl.label.update: 
+            id: solarpower_lbl
+            text:
+              format: "%.2f"
+              args: [ 'id(solar_power).get_state()' ]
+  - platform: homeassistant
+    id: total_power
+    entity_id: sensor.total_power
+    on_value: 
+      then:
+        - lvgl.label.update: 
+            id: totalpower_lbl
+            text:
+              format: "%.2f"
+              args: [ 'id(total_power).get_state()' ]
+            
+
+lvgl:
+  buffer_size: 25%
+
+  pages:
+    - id: main_page
+      width: 100%
+      bg_color: White
+      widgets:
+        - obj:
+            border_width: 1
+            border_color: red
+            radius: 10px
+            pad_all: 10px
+            x: 10
+            y: 10
+            width: 220
+            height: 300
+            layout:
+                type: FLEX
+                flex_flow: ROW_WRAP
+                flex_align_main: center
+                flex_align_cross: end
+                pad_column: 2px
+                pad_row: 20px
+            widgets:
+              - label:
+                  text_font: montserrat_24
+                  text: Solar power
+              - label:
+                  id: solarpower_lbl
+                  text_font: montserrat_24
+                  text: Power
+              - label:
+                  text_font: montserrat_24
+                  text:  W
+#                  height: 32
+              - label:
+                  text_font: montserrat_24
+                  text: Consumption
+              - label:
+                  id: totalpower_lbl
+                  text_font: montserrat_24
+                  text: Consumption
+              - label:
+                  text_font: montserrat_24
+                  text:  W
+              - button:
+                  width: 100
+                  height: 50
+                  id: btn_id1
+                  checkable: true
+                  widgets:
+                    - label:
+                        align: center
+                        text: "Next page"
+                  on_value:
+                    then:
+                      - logger.log:
+                          format: "Button checked state: %d"
+                          args: [ x ]
+                  on_click:
+                    then:
+                      - logger.log:
+                          format: "Button checked state: %d"
+                          args: [ x ]
+                      - lambda: |-
+                          ESP_LOGI("button", "Button clicked: %d", x );
+                      - lvgl.page.show: second_page
+
+    - id: second_page
+      width: 100%
+      bg_color: White
+      widgets:
+        - obj:
+            border_width: 1
+            border_color: red
+            radius: 10px
+            pad_all: 10px
+            x: 10
+            y: 10
+            width: 220
+            height: 300
+            layout:
+                type: FLEX
+                flex_flow: ROW_WRAP
+                flex_align_main: center
+                flex_align_cross: end
+                pad_column: 2px
+                pad_row: 20px
+            widgets:
+              - label:
+                  text_font: montserrat_24
+                  text: Second page
+                  height: 32
+              - label:
+                  text_font: montserrat_24
+                  text: We arrived!
+              - button:
+                  width: 100
+                  height: 50
+                  id: btn_id2
+                  checkable: true
+                  widgets:
+                    - label:
+                        align: center
+                        text: "First page"
+                  on_value:
+                    then:
+                      - logger.log:
+                          format: "Button checked state: %d"
+                          args: [ x ]
+                  on_click:
+                    then:
+                      - logger.log:
+                          format: "Button checked state: %d"
+                          args: [ x ]
+                      - lambda: |-
+                          ESP_LOGI("button", "Button clicked: %d", x );
+                      - lvgl.page.show: main_page
