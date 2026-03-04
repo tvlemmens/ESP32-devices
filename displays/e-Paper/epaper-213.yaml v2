@@ -20,8 +20,6 @@ packages:   # as a list
 ota:
   platform: esphome
 
-wifi:
-  id: wifi_id
 
 # Home Assistant sensors
 sensor:
@@ -31,11 +29,12 @@ sensor:
     on_value: 
       then:
         - component.update: epd
-        # this will update the e-paper every time the temperatures updates
 
-
-
+wifi:
+  id: wifi_id
+  
 ### DISPLAY SECTION ###
+
 ### CONNECTORS
 # VCC   3v3
 # GND   gnd
@@ -58,33 +57,28 @@ display:
     dc_pin: 18
     busy_pin: 21
     reset_pin: 19
-    model: 2.13inv3 # Strangely, this is the version on which the screen worked, even though it's a v2
-    update_interval: 5min # update set high enough to avoid flickering of the screen
+    model: 2.13inv3
+    update_interval: 5min
     full_update_every: 30
     rotation: 90
-    lambda: |-
-      // Tijd linksboven
-      auto time = id(sntp_time).now();
-      // it.strftime(0, 0, id(font20), TextAlign::TOP_LEFT, "%a %d %b %Y", id(sntp_time).now());
-      // it.strftime(250, 0, id(font30), TextAlign::TOP_RIGHT, "%H:%M", id(sntp_time).now());
-
-      // Home Assistant sensor display
-      // it.printf(0, 50, id(font14), "Living:    %.1f°C", id(living_temperature).state);
 
 
 lvgl:
+  buffer_size: 25%
+
   pages:
     - id: canvas_1
-      bg_color: 0xFFFFFF
+      bg_color: 0x000000
       widgets:
         - label:
             id: lv_label_date
             x: 0
             y: 0
-            width: 120
+            width: 170
             height: 25
             text: "Mon 01 Mar 2026"
-            text_color: 0x000000
+            text_color: 0xFFFFFF
+            text_font: montserrat_18
 
         - label:
             id: lv_label_time
@@ -93,10 +87,10 @@ lvgl:
             width: 71
             height: 30
             text: "20:23"
-            text_color: 0x000000
+            text_color: 0xFFFFFF
             text_align: RIGHT
             long_mode: CLIP
-            text_font: montserrat_20
+            text_font: montserrat_24
 
         - label:
             id: lv_txt_temp
@@ -105,9 +99,9 @@ lvgl:
             width: 115
             height: 20
             text: "Temperature"
-            text_color: 0x000000
+            text_color: 0xFFFFFF
             text_align: CENTER
-            text_font: montserrat_10
+            text_font: montserrat_16
 
         - label:
             id: lv_txt_hum
@@ -116,9 +110,9 @@ lvgl:
             width: 115
             height: 20
             text: "Humidity"
-            text_color: 0x000000
+            text_color: 0xFFFFFF
             text_align: CENTER
-            text_font: montserrat_10
+            text_font: montserrat_16
 
         - obj:
             id: lv_obj_temp
@@ -126,8 +120,8 @@ lvgl:
             y: 60
             width: 115
             height: 50
-            bg_color: 0xFFFFFF
-            border_color: 0x000000
+            bg_color: 0x000000
+            border_color: 0xFFFFFF
             border_width: 2
             radius: 10
 
@@ -137,47 +131,29 @@ lvgl:
             y: 60
             width: 115
             height: 50
-            bg_color: 0xFFFFFF
-            border_color: 0x000000
+            bg_color: 0x000000
+            border_color: 0xFFFFFF
             border_width: 2
             radius: 10
 
         - label:
             id: lv_label_temp
             x: 10
-            y: 70
+            y: 76
             width: 100
             height: 30
             text: "23.3 C"
-            text_color: 0x000000
+            text_color: 0xFFFFFF
             text_align: CENTER
+            text_font: montserrat_18
 
         - label:
             id: lv_label_hum
             x: 136
-            y: 70
+            y: 76
             width: 100
             height: 30
             text: "63%"
-            text_color: 0x000000
+            text_color: 0xFFFFFF
             text_align: CENTER
-
-
-
-
-font:
-  - file: "gfonts://Roboto"
-    id: font30
-    size: 30
-  - file: "gfonts://Roboto"
-    id: font20
-    size: 20
-  - file: "gfonts://Roboto"
-    id: font14
-    size: 14
-  - file: "gfonts://Roboto"
-    id: font12
-    size: 12
-  - file: "gfonts://Roboto"
-    id: font11
-    size: 11
+            text_font: montserrat_18
