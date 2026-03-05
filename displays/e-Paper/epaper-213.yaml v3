@@ -1,0 +1,188 @@
+# Standaard ESP en HA instellingen 
+substitutions:
+  devicename: 213-e-paper
+  friendly_name: 2.13 e-Paper
+  static_ip: 10.0.0.63
+
+# Basis configuratie
+esphome:
+  name: ${devicename}
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Load ESP32 device defaults via common base file
+packages:   # as a list
+  - !include common/base.yaml
+
+# Enable OTA updates
+ota:
+  platform: esphome
+
+
+# Home Assistant sensors
+sensor:
+  - platform: homeassistant
+    id: living_temperature
+    entity_id: sensor.diyless_thermostat_ble_sensor_temperature
+    on_value: 
+      then:
+        - lvgl.label.update: 
+            id: lv_label_temp
+            text:
+              format: "%.1f °C"
+              args: [ 'id(living_temperature).get_state()' ]
+        - component.update: epd
+
+  - platform: homeassistant
+    id: living_humidity
+    entity_id: sensor.diyless_thermostat_ble_humidity
+    on_value: 
+      then:
+        - lvgl.label.update: 
+            id: lv_label_hum
+            text:
+              format: "%.1f °C"
+              args: [ 'id(living_humidity).get_state()' ]
+
+
+wifi:
+  id: wifi_id
+  
+### DISPLAY SECTION ###
+
+### CONNECTORS
+# VCC   3v3
+# GND   gnd
+# DIN   15    = SPI mosi pin (spi.mosi_pin)
+# CLK   16    = SPI clock pin (spi.clk_pin)
+# CS    17
+# DC    18
+# RST   19
+# BUSY  21
+
+# Example configuration entry - single controller
+spi:
+  clk_pin: 16
+  mosi_pin: 15
+
+display:
+  - platform: waveshare_epaper
+    id: epd
+    cs_pin: 17
+    dc_pin: 18
+    busy_pin: 21
+    reset_pin: 19
+    model: 2.13inv3
+    # update_interval: 5min
+    full_update_every: 30
+    rotation: 90
+
+
+lvgl:
+  buffer_size: 25%
+
+  pages:
+    - id: canvas_1
+      bg_color: 0x000000
+      widgets:
+        - label:
+            id: lv_label_date
+            x: 0
+            y: 0
+            width: 170
+            height: 25
+            text: "Mon 01 Mar 2026"
+            text_color: 0xFFFFFF
+            text_font: montserrat_18
+
+        - label:
+            id: lv_label_updated
+            x: 175
+            y: 1
+            width: 71
+            height: 10
+            text: "Last update"
+            text_color: 0xFFFFFF
+            text_align: RIGHT
+            long_mode: CLIP
+            text_font: montserrat_10
+
+        - label:
+            id: lv_label_time
+            x: 175
+            y: 12
+            width: 71
+            height: 30
+            text: "20:23"
+            text_color: 0xFFFFFF
+            text_align: RIGHT
+            long_mode: CLIP
+            text_font: montserrat_24
+
+        - label:
+            id: lv_txt_temp
+            x: 4
+            y: 46
+            width: 115
+            height: 20
+            text: "Temperature"
+            text_color: 0xFFFFFF
+            text_align: CENTER
+            text_font: montserrat_16
+
+        - label:
+            id: lv_txt_hum
+            x: 127
+            y: 46
+            width: 115
+            height: 20
+            text: "Humidity"
+            text_color: 0xFFFFFF
+            text_align: CENTER
+            text_font: montserrat_16
+
+        - obj:
+            id: lv_obj_temp
+            x: 4
+            y: 70
+            width: 115
+            height: 50
+            bg_color: 0x000000
+            border_color: 0xFFFFFF
+            border_width: 2
+            radius: 10
+
+        - obj:
+            id: lv_obj_hum
+            x: 127
+            y: 70
+            width: 115
+            height: 50
+            bg_color: 0x000000
+            border_color: 0xFFFFFF
+            border_width: 2
+            radius: 10
+
+        - label:
+            id: lv_label_temp
+            x: 10
+            y: 82
+            width: 100
+            height: 30
+            text: "---"
+            text_color: 0xFFFFFF
+            text_align: CENTER
+            text_font: montserrat_18
+
+        - label:
+            id: lv_label_hum
+            x: 136
+            y: 82
+            width: 100
+            height: 30
+            text: "---"
+            text_color: 0xFFFFFF
+            text_align: CENTER
+            text_font: montserrat_18
