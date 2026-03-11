@@ -1,1 +1,87 @@
+# Standaard ESP en HA instellingen 
+substitutions:
+  devicename: dht-cube
+  friendly_name: DHT Cube
+  static_ip: 10.0.0.67
 
+# Basis configuratie
+esphome:
+  name: ${devicename}
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+# Load ESP32 device defaults via common base file
+packages:   # as a list
+  - !include common/base.yaml
+  
+wifi:
+  id: wifi_id
+  fast_connect: true
+
+logger:
+
+debug:
+
+# Home Assistant sensors
+sensor:
+  - platform: homeassistant
+    id: living_temperature
+    entity_id: sensor.diyless_thermostat_ble_sensor_temperature
+
+  - platform: homeassistant
+    id: living_humidity
+    entity_id: sensor.diyless_thermostat_ble_humidity
+
+time:
+  - platform: sntp
+    id: !extend sntp_time
+
+i2c:
+  sda: GPIO04
+  scl: GPIO03
+  scan: true
+
+font:
+  - file: "gfonts://Roboto"
+    id: font20
+    size: 20
+  - file: "gfonts://Roboto"
+    id: font14
+    size: 14
+  - file: "gfonts://Roboto"
+    id: font12
+    size: 12
+  - file: "gfonts://Roboto"
+    id: font16
+    size: 16
+
+  - file: "ttf/materialdesignicons-webfont.ttf"
+    id: icon_font
+    size: 30
+    glyphs:
+      - "\U000F050F"  # mdi:thermometer
+      - "\U000F058E"  # mdi:water (humidity)
+
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    address: 0x3C
+    lambda: |-
+
+      // WiFi icoon rechtsboven
+      // if (id(wifi_id).is_connected()) { }
+        
+        // Tijd linksboven
+      auto time = id(sntp_time).now();
+      it.strftime(0, 0, id(font12), TextAlign::TOP_LEFT, "%b %d %H:%M", id(sntp_time).now());
+
+      // Home Assistant sensor display
+      it.printf(22, 15, id(icon_font), "%s", "\U000F050F");
+      it.printf(86, 15, id(icon_font), "%s", "\U000F058E");
+
+      it.printf(10, 47, id(font16), "%.1f °C", id(living_temperature).state);
+      it.printf(76, 47, id(font16), "%.1f %%", id(living_humidity).state);
+  
