@@ -58,11 +58,16 @@ font:
     size: 16
 
   - file: "ttf/materialdesignicons-webfont.ttf"
-    id: icon_font
+    id: icon30
     size: 30
     glyphs:
       - "\U000F050F"  # mdi:thermometer
       - "\U000F058E"  # mdi:water (humidity)
+  - file: "ttf/materialdesignicons-webfont.ttf"
+    id: icon16
+    size: 16
+    glyphs:
+      - "\U000F0820"  # mdi:lighting-bolt-circle
 
 
 display:
@@ -72,15 +77,17 @@ display:
     lambda: |-
 
       // WiFi icoon rechtsboven
-      // if (id(wifi_id).is_connected()) { }
+      if (id(wifi_id).is_connected()) { 
+        it.printf(108, 0, id(icon16), "%s", "\U000F0820");
+      }
         
         // Tijd linksboven
       auto time = id(sntp_time).now();
       it.strftime(0, 0, id(font12), TextAlign::TOP_LEFT, "%b %d %H:%M", id(sntp_time).now());
 
       // Home Assistant sensor display
-      it.printf(22, 15, id(icon_font), "%s", "\U000F050F");
-      it.printf(86, 15, id(icon_font), "%s", "\U000F058E");
+      it.printf(22, 15, id(icon30), "%s", "\U000F050F");
+      it.printf(86, 15, id(icon30), "%s", "\U000F058E");
 
       it.printf(10, 47, id(font16), "%.1f °C", id(living_temperature).state);
       it.printf(76, 47, id(font16), "%.1f %%", id(living_humidity).state);
