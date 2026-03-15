@@ -1,0 +1,136 @@
+# Sunton 5" ESP32-8048S050 480px X 800px Smart Screen
+# https://www.aliexpress.com/item/3256804766379290.html
+#
+# Hardware configuration file
+---
+
+# Standaard ESP en HA instellingen 
+substitutions:
+  devicename: "esp32-8048s050c"
+  friendly_name: CYD 5.0
+  static_ip: 10.0.0.68
+
+# Load ESP32 device defaults via common base file
+packages:   # as a list
+  - !include common/base.yaml
+
+# Basis configuratie
+esphome:
+  name: ${devicename}
+  platformio_options:
+    build_flags: "-DBOARD_HAS_PSRAM"
+    board_build.esp-idf.memory_type: qio_opi
+    board_build.flash_mode: dio
+    board_upload.maximum_ram_size: 524288
+
+esp32:
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    # Required to achieve sufficient PSRAM bandwidth
+    sdkconfig_options:
+      COMPILER_OPTIMIZATION_SIZE: y
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: y
+      CONFIG_ESP32S3_DATA_CACHE_64KB: y
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: y
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
+      CONFIG_ESPTOOLPY_FLASHSIZE_16MB: y # fix warning about 2mb found
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+i2c:
+  - sda: 19
+    scl: 20
+    scan: true
+
+output:
+  # Backlight LED
+  - platform: ledc
+    pin:
+      number: GPIO02
+    id: gpio_backlight_pwm
+    frequency: 1220
+
+light:
+  - platform: monochromatic
+    output: gpio_backlight_pwm
+    name: Display Backlight
+    icon: mdi:lightbulb-on
+    id: display_backlight
+    restore_mode: ALWAYS_ON
+
+#-------------------------------------------
+# Display
+#-------------------------------------------
+display:
+  - id: main_display
+    platform: mipi_rgb
+    model: RPI
+    dimensions:
+      width: 800
+      height: 480
+    # rotation: 90
+    color_order: RGB
+    de_pin: 40
+    hsync_pin: 39
+    vsync_pin: 41
+    pclk_pin: 42
+    pclk_inverted: true
+    pclk_frequency: 15MHz # needs to be at 15Mhz
+    hsync_front_porch: 8
+    hsync_pulse_width: 4
+    hsync_back_porch: 8
+    vsync_front_porch: 8
+    vsync_pulse_width: 4
+    vsync_back_porch: 8
+    data_pins:
+      red: [45, 48, 47, 21, 14]
+      green: [5, 6, 7, 15, 16, 4]
+      blue: [8, 3, 46, 9, 1]
+    update_interval: never
+    auto_clear_enabled: false
+
+
+#--------------------------
+# LVGL Config
+#--------------------------
+
+lvgl:
+  pages:
+    - id: canvas_1
+      bg_color: 0xFFFFFF
+      widgets:
+        - label:
+            id: lv_label_2
+            x: 0
+            y: 0
+            width: 320
+            height: 60
+            text: "This is the Welcome Screen!"
+            text_color: 0x0642F4
+            text_font: montserrat_24
+
+        - bar:
+            id: lv_bar_4
+            x: 130
+            y: 180
+            width: 200
+            height: 30
+            value: 50
+            min_value: 0
+            max_value: 100
+            indicator:
+              bg_color: 0x13C33C
+            bg_color: 0x1F2937
+
+        - led:
+            id: lv_led_5
+            x: 190
+            y: 310
+            width: 40
+            height: 40
+            color: 0xFF0000
