@@ -1,0 +1,261 @@
+# Sunton 5" ESP32-8048S050 480px X 800px Smart Screen
+# https://www.aliexpress.com/item/3256804766379290.html
+#
+# Hardware configuration file
+---
+
+# Standaard ESP en HA instellingen 
+substitutions:
+  devicename: "esp32-8048s050c"
+  friendly_name: CYD 5.0
+  static_ip: 10.0.0.68
+
+  WINDOW_MINUTES: "60"
+
+
+# Load ESP32 device defaults via common base file
+packages:   # as a list
+  - !include common/base.yaml
+
+# Basis configuratie
+esphome:
+  name: ${devicename}
+  platformio_options:
+    build_flags: 
+      - "-DBOARD_HAS_PSRAM"
+    board_build.esp-idf.memory_type: qio_opi
+    board_build.flash_mode: dio
+    board_upload.maximum_ram_size: 524288
+
+
+esp32:
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    # Required to achieve sufficient PSRAM bandwidth
+    sdkconfig_options:
+      COMPILER_OPTIMIZATION_SIZE: y
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: y
+      CONFIG_ESP32S3_DATA_CACHE_64KB: y
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: y
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
+      CONFIG_ESPTOOLPY_FLASHSIZE_16MB: y # fix warning about 2mb found
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+i2c:
+  - sda: 19
+    scl: 20
+    scan: true
+
+output:
+  # Backlight LED
+  - platform: ledc
+    pin:
+      number: GPIO02
+    id: gpio_backlight_pwm
+    frequency: 1220
+
+light:
+  - platform: monochromatic
+    output: gpio_backlight_pwm
+    name: Display Backlight
+    icon: mdi:lightbulb-on
+    id: display_backlight
+    restore_mode: ALWAYS_ON
+
+#-------------------------------------------
+# Display
+#-------------------------------------------
+display:
+  - id: main_display
+    platform: mipi_rgb
+    model: RPI
+    dimensions:
+      width: 800
+      height: 480
+    # rotation: 90
+    color_order: RGB
+    de_pin: 40
+    hsync_pin: 39
+    vsync_pin: 41
+    pclk_pin: 42
+    pclk_inverted: true
+    pclk_frequency: 15MHz # needs to be at 15Mhz
+    hsync_front_porch: 8
+    hsync_pulse_width: 4
+    hsync_back_porch: 8
+    vsync_front_porch: 8
+    vsync_pulse_width: 4
+    vsync_back_porch: 8
+    data_pins:
+      red: [45, 48, 47, 21, 14]
+      green: [5, 6, 7, 15, 16, 4]
+      blue: [8, 3, 46, 9, 1]
+    update_interval: never
+    auto_clear_enabled: false
+
+
+
+font:
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 400
+      italic: false
+    id: font_roboto_400_12
+    size: 12
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 400
+      italic: false
+    id: font_roboto_400_14
+    size: 14
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 400
+      italic: false
+    id: font_roboto_400_20
+    size: 20
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 700
+      italic: false
+    id: font_roboto_700_28
+    size: 28
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 400
+      italic: false
+    id: font_roboto_400_16
+    size: 16
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file: "ttf/materialdesignicons-webfont.ttf"
+    id: font_material_design_icons_400_24
+    size: 24
+    glyphs: ["\U000F091F", "\U000F0922", "\U000F0925", "\U000F0928", "\U000F092B"]
+  - file: "ttf/materialdesignicons-webfont.ttf"
+    id: font_material_design_icons_400_66
+    size: 66
+    glyphs: ["\U000F0026", "\U000F0590", "\U000F0591", "\U000F0592", "\U000F0593", "\U000F0594", "\U000F0595", "\U000F0596", "\U000F0597", "\U000F0598", "\U000F0599", "\U000F059D", "\U000F059E", "\U000F067E", "\U000F067F"]
+
+image:
+  - file: img/lcars2.png
+    id: lcar_bg
+    type: rgb565
+    resize: 840x480
+
+
+
+
+#---------------------
+# Sensors
+#---------------------
+
+
+sensor:
+  - platform: homeassistant
+    id: ha_temp
+    entity_id: sensor.diyless_thermostat_ble_sensor_temperature  # <-- change this
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGI("Temp", "Temp value changed: %.1f", x);
+
+
+globals:
+  - id: temp_history
+    type: float[60]
+    restore_value: no
+  - id: temp_count
+    type: int
+    initial_value: '0'
+
+
+interval:
+  - interval: 60s # Set at 2s for testing!
+    then:
+      - lambda: |-
+          float current_temp = id(ha_temp).state;
+          if (isnan(current_temp)) return;
+
+          int max_points = atoi("${WINDOW_MINUTES}");
+
+          // NEW LOGIC: If this is the first reading, fill the whole screen!
+          if (id(temp_count) == 0) {
+            for (int i = 0; i < max_points; i++) {
+              id(temp_history)[i] = current_temp;
+            }
+            id(temp_count) = max_points; // Now we have a full screen of points
+          } else {
+            // Normal shifting logic
+            for (int i = 0; i < max_points - 1; i++) {
+              id(temp_history)[i] = id(temp_history)[i + 1];
+            }
+            id(temp_history)[max_points - 1] = current_temp;
+          }
+
+          static lv_point_t points[60]; 
+          
+          float y_min = 19.0; 
+          float y_max = 28.0; 
+          int width = 280;
+          int height = 160;
+
+          for (int i = 0; i < max_points; i++) {
+            points[i].x = (i * width) / (max_points - 1);
+            
+            float temp = id(temp_history)[i];
+            if (temp < y_min) temp = y_min;
+            if (temp > y_max) temp = y_max;
+            
+            float ratio = (temp - y_min) / (y_max - y_min);
+            points[i].y = height - (int)(ratio * height);
+          }
+
+          // Update the line and force a redraw
+          lv_line_set_points(id(my_graph_line)->obj, points, max_points);
+          lv_obj_invalidate(id(my_graph_line)->obj);
+
+
+#--------------------------
+# LVGL Config
+#--------------------------
+
+lvgl:
+  widgets:
+    - obj:
+        id: graph_container
+        width: 280
+        height: 160
+        align: center
+        bg_color: 0x1a1a2e
+        widgets:
+          # We MUST keep this here so ESPHome compiles the line C++ code!
+          - line:
+              id: my_graph_line
+              width: 100%
+              height: 100%
+              points: 
+                - 0,0 
+                - 0,0
+              line_width: 2
+              line_color: 0xFF0000 # Red
