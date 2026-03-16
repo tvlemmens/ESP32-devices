@@ -1,0 +1,231 @@
+# Sunton 5" ESP32-8048S050 480px X 800px Smart Screen
+# https://www.aliexpress.com/item/3256804766379290.html
+#
+# Hardware configuration file
+---
+
+# Standaard ESP en HA instellingen 
+substitutions:
+  devicename: "esp32-8048s050c"
+  friendly_name: CYD 5.0
+  static_ip: 10.0.0.68
+
+  WINDOW_MINUTES: "60"
+
+
+# Load ESP32 device defaults via common base file
+packages:   # as a list
+  - !include common/base.yaml
+
+# Basis configuratie
+esphome:
+  name: ${devicename}
+  platformio_options:
+    build_flags: 
+      - "-DBOARD_HAS_PSRAM"
+      - "-D LV_USE_CHART=1"
+    board_build.esp-idf.memory_type: qio_opi
+    board_build.flash_mode: dio
+    board_upload.maximum_ram_size: 524288
+
+  includes:
+    - lvgl_chart.h          # <-- pulls in our C++ wrapper
+
+  on_boot:
+    priority: -200
+    then:
+      - delay: 3s
+      - lambda: |-
+          ESP_LOGI("test", "on_boot lambda fired");
+          ESP_LOGI("test", "container pointer: %p", id(chart_container));
+          my_chart.init(
+            id(chart_container),
+            280, 160,
+            60,
+            0, 100
+          );
+          ESP_LOGI("test", "init() complete");
+
+logger:
+  level: DEBUG
+
+
+esp32:
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    # Required to achieve sufficient PSRAM bandwidth
+    sdkconfig_options:
+      COMPILER_OPTIMIZATION_SIZE: y
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: y
+      CONFIG_ESP32S3_DATA_CACHE_64KB: y
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: y
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
+      CONFIG_ESPTOOLPY_FLASHSIZE_16MB: y # fix warning about 2mb found
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+i2c:
+  - sda: 19
+    scl: 20
+    scan: true
+
+output:
+  # Backlight LED
+  - platform: ledc
+    pin:
+      number: GPIO02
+    id: gpio_backlight_pwm
+    frequency: 1220
+
+light:
+  - platform: monochromatic
+    output: gpio_backlight_pwm
+    name: Display Backlight
+    icon: mdi:lightbulb-on
+    id: display_backlight
+    restore_mode: ALWAYS_ON
+
+#-------------------------------------------
+# Display
+#-------------------------------------------
+display:
+  - id: main_display
+    platform: mipi_rgb
+    model: RPI
+    dimensions:
+      width: 800
+      height: 480
+    # rotation: 90
+    color_order: RGB
+    de_pin: 40
+    hsync_pin: 39
+    vsync_pin: 41
+    pclk_pin: 42
+    pclk_inverted: true
+    pclk_frequency: 15MHz # needs to be at 15Mhz
+    hsync_front_porch: 8
+    hsync_pulse_width: 4
+    hsync_back_porch: 8
+    vsync_front_porch: 8
+    vsync_pulse_width: 4
+    vsync_back_porch: 8
+    data_pins:
+      red: [45, 48, 47, 21, 14]
+      green: [5, 6, 7, 15, 16, 4]
+      blue: [8, 3, 46, 9, 1]
+    update_interval: never
+    auto_clear_enabled: false
+
+
+
+font:
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 400
+      italic: false
+    id: font_roboto_400_12
+    size: 12
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 400
+      italic: false
+    id: font_roboto_400_14
+    size: 14
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 400
+      italic: false
+    id: font_roboto_400_20
+    size: 20
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 700
+      italic: false
+    id: font_roboto_700_28
+    size: 28
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file:
+      type: gfonts
+      family: "Roboto"
+      weight: 400
+      italic: false
+    id: font_roboto_400_16
+    size: 16
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+  - file: "ttf/materialdesignicons-webfont.ttf"
+    id: font_material_design_icons_400_24
+    size: 24
+    glyphs: ["\U000F091F", "\U000F0922", "\U000F0925", "\U000F0928", "\U000F092B"]
+  - file: "ttf/materialdesignicons-webfont.ttf"
+    id: font_material_design_icons_400_66
+    size: 66
+    glyphs: ["\U000F0026", "\U000F0590", "\U000F0591", "\U000F0592", "\U000F0593", "\U000F0594", "\U000F0595", "\U000F0596", "\U000F0597", "\U000F0598", "\U000F0599", "\U000F059D", "\U000F059E", "\U000F067E", "\U000F067F"]
+
+image:
+  - file: img/lcars2.png
+    id: lcar_bg
+    type: rgb565
+    resize: 840x480
+
+
+#---------------------
+# Sensors
+#---------------------
+
+sensor:
+  - platform: homeassistant
+    id: ha_temp
+    entity_id: sensor.diyless_thermostat_ble_sensor_temperature  # <-- change this
+    internal: true
+    on_value:
+      - lambda: |-
+          my_chart.push_value(x);
+          ESP_LOGI("Temp", "Temp value changed: %.1f", x);
+
+# Or push a value on a timer:
+#----------------------------
+interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          my_chart.push_value(id(my_sensor).state);
+
+#--------------------------
+# LVGL Config
+#--------------------------
+
+lvgl:
+  pages: 
+    - id: main_page
+      widgets:
+    # A plain obj acts as the parent/container for our native chart.
+    # Give it the exact size you want the chart to occupy.
+        - obj:
+            id: chart_container
+            width: 280
+            height: 160
+            align: CENTER
+            bg_color: 0xFF0000     # bright red — just for testing
+            # Background transparent — our C++ code styles the chart itself
+            bg_opa: TRANSP
+            border_width: 1
+            border_opa: COVER
+            border_color: 0x00FF00  # bright green border
+
