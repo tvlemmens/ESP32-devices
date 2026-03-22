@@ -1,0 +1,81 @@
+# Standaard ESP en HA instellingen 
+substitutions:
+  devicename: 2420-c3-mini
+  friendly_name: 2420-C3-Mini
+  static_ip: xxx.xxx.xxx.xxx
+
+# Basis configuratie
+esphome:
+  name: ${devicename}
+  friendly_name: ${friendly_name}
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+# Load ESP32 device defaults via common base file
+packages:   # as a list
+  - !include common/base.yaml
+  
+# Below will follow device-specific settings
+
+logger:
+  level: VERY_VERBOSE   # Dial down logger level after debugging and before putting in production
+  baud_rate: 0
+
+################################################################################
+# UART
+uart:
+  id: uart_bus
+  tx_pin: GPIO6
+  rx_pin: GPIO7
+  baud_rate: 115200
+  parity: NONE
+  stop_bits: 1
+
+# Example configuration entry
+ld2420:
+
+text_sensor:
+  - platform: ld2420
+    fw_version:
+      name: LD2420 Firmware
+
+sensor:
+  - platform: ld2420
+    moving_distance:
+      name : Moving Distance
+
+binary_sensor:
+  - platform: ld2420
+    has_target:
+      name: Presence
+
+button:
+  - platform: ld2420
+    apply_config:
+      name: Apply Config
+    factory_reset:
+      name: Factory Reset
+    restart_module:
+      name: Restart Module
+    revert_config:
+      name: Undo Edits
+
+
+number:
+  - platform: ld2420
+    presence_timeout:
+      name: Detection Presence Timeout
+    min_gate_distance:
+      name: Detection Gate Minimum
+    max_gate_distance:
+      name: Detection Gate Maximum
+    # See "Number" section below for detail
+    gate_select:
+      name: Select Gate to Set
+    still_threshold:
+      name: Set Still Threshold Value
+    move_threshold:
+      name: Set Move Threshold Value
+
