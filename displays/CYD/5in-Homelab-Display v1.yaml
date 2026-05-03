@@ -1,0 +1,163 @@
+esphome:
+  name: sdl_touchscreen_lvgl
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: "TBD"
+
+
+display:
+  - platform: sdl
+    dimensions:
+      width: 800
+      height: 480
+    auto_clear_enabled: false
+    id: my_display
+    lambda: |-
+      // --- KLEUREN DEFINIEREN (Binnen de Lambda) ---
+      auto col_bg = Color(0x0D0D0D);       // Bijna zwart
+      auto col_blue = Color(0x0099FF);     // Main accent
+      auto col_green = Color(0x00FF00);    // Running
+      auto col_red = Color(0xFF0000);      // Stopped
+      auto col_gray = Color(0x333333);     // Borders/Bars
+
+      // --- ACHTERGROND & LAYOUT ---
+      it.fill(col_bg);
+      it.line(260, 60, 260, 460, col_gray); 
+      it.line(530, 60, 530, 460, col_gray); 
+
+      // --- HEADER ---
+      it.printf(10, 10, id(font_header), col_blue, "HOMELAB MONITOR");
+      it.line(10, 45, 790, 45, col_blue);
+
+      // --- KOLOM 1: UBUNTU PROD ---
+      it.printf(10, 60, id(font_med), Color::WHITE, "UBUNTU PROD");
+      
+      // CPU (Handmatige bar tekenen ipv progressbar voor maximale compatibiliteit)
+      it.printf(10, 100, id(font_small), Color::WHITE, "CPU");
+      it.printf(250, 100, id(font_small), TextAlign::TOP_RIGHT, "%.0f%%", id(ubuntu_cpu).state);
+      it.rectangle(10, 120, 230, 15, col_gray);
+      it.filled_rectangle(10, 120, (int)(2.3 * id(ubuntu_cpu).state), 15, col_blue);
+
+      // RAM
+      it.printf(10, 150, id(font_small), Color::WHITE, "MEMORY");
+      it.printf(250, 150, id(font_small), TextAlign::TOP_RIGHT, "%.0f%%", id(ubuntu_mem).state);
+      it.rectangle(10, 170, 230, 15, col_gray);
+      it.filled_rectangle(10, 170, (int)(2.3 * id(ubuntu_mem).state), 15, col_blue);
+
+      // Netwerk
+      it.printf(10, 210, id(font_tiny), Color::WHITE, "DOWN: %.1f Mb/s", id(ubuntu_net_down).state);
+      it.printf(10, 235, id(font_tiny), Color::WHITE, "UP:   %.1f Mb/s", id(ubuntu_net_up).state);
+
+      // --- KOLOM 2: DOCKER STATUS ---
+      it.printf(280, 60, id(font_med), Color::WHITE, "DOCKER STATUS");
+      it.printf(280, 100, id(font_tiny), col_blue, "RUNNING: %0.f / %0.f", id(docker_running).state, id(docker_total).state);
+      
+      // Container Status rijen
+      auto draw_cont = [&](int y, std::string name, bool active) {
+          it.filled_circle(290, y+10, 6, active ? col_green : col_red);
+          it.printf(310, y, id(font_small), Color::WHITE, name.c_str());
+      };
+
+      draw_cont(140, "Home Assistant", id(ha_status).state);
+      draw_cont(180, "ESPHome", (id(esphome_status).state == "running"));
+      draw_cont(220, "Mosquitto", id(mqtt_status).state);
+      draw_cont(260, "Node-Red", id(nodered_status).state);
+
+      // --- KOLOM 3: HOST CLUSTER ---
+      it.printf(550, 60, id(font_med), Color::WHITE, "HOST CLUSTER");
+
+      auto draw_host = [&](int y, std::string name, float cpu, float mem) {
+          it.printf(550, y, id(font_small), Color::WHITE, name.c_str());
+          it.printf(790, y, id(font_tiny), col_blue, TextAlign::TOP_RIGHT, "C:%.0f%% M:%.0f%%", cpu, mem);
+          it.rectangle(550, y+22, 240, 6, col_gray);
+          it.filled_rectangle(550, y+22, (int)(2.4 * cpu), 6, col_blue);
+      };
+
+      draw_host(100, "Ubuntu", id(ubuntu_cpu).state, id(ubuntu_mem).state);
+      draw_host(160, "Boss", id(boss_cpu).state, id(boss_mem).state);
+      draw_host(220, "Pavilion", id(pavilion_cpu).state, id(pavilion_mem).state);
+      draw_host(280, "Radxa", id(radxa_cpu).state, id(radxa_mem).state);
+
+
+
+
+
+# Font definities (zorg dat je de .ttf bestanden in je esphome map hebt)
+font:
+  - file: "fonts/Roboto-Medium.ttf"
+    id: font_header
+    size: 32
+  - file: "fonts/Roboto-Medium.ttf"
+    id: font_med
+    size: 24
+  - file: "fonts/Roboto-Light.ttf"
+    id: font_small
+    size: 18
+  - file: "fonts/Roboto-Light.ttf"
+    id: font_tiny
+    size: 14
+
+# Importeer alle sensoren uit HA
+text_sensor:
+  - platform: homeassistant
+    id: esphome_status
+    entity_id: sensor.esphome_state # De HA sensor die "running" teruggeeft
+
+sensor:
+  - platform: homeassistant
+    id: ubuntu_cpu
+    entity_id: sensor.ubuntu_cpu_usage
+    initial_value: "45.0"
+  - platform: homeassistant
+    id: ubuntu_mem
+    entity_id: sensor.ubuntu_memory_usage
+  - platform: homeassistant
+    id: ubuntu_net_down
+    entity_id: sensor.ubuntu_network_download
+  - platform: homeassistant
+    id: ubuntu_net_up
+    entity_id: sensor.ubuntu_network_upload
+  - platform: homeassistant
+    id: docker_total
+    entity_id: sensor.local_container_count
+  - platform: homeassistant
+    id: docker_running
+    entity_id: sensor.local_containers_running
+  - platform: homeassistant
+    id: docker_stopped
+    entity_id: sensor.local_containers_stopped
+  - platform: homeassistant
+    id: boss_cpu
+    entity_id: sensor.boss_cpu_usage
+  - platform: homeassistant
+    id: boss_mem
+    entity_id: sensor.boss_memory_usage
+  - platform: homeassistant
+    id: pavilion_cpu
+    entity_id: sensor.pavilion_cup_usage
+  - platform: homeassistant
+    id: pavilion_mem
+    entity_id: sensor.pavilion_memory_usage
+  - platform: homeassistant
+    id: radxa_cpu
+    entity_id: sensor.radxa_cpu_usage
+  - platform: homeassistant
+    id: radxa_mem
+    entity_id: sensor.radxa_memory_usage
+
+binary_sensor:
+  - platform: homeassistant
+    id: ha_status
+    entity_id: binary_sensor.homeassistant_status_2
+  - platform: homeassistant
+    id: mqtt_status
+    entity_id: binary_sensor.mosquitto_status_2
+  - platform: homeassistant
+    id: nodered_status
+    entity_id: binary_sensor.node_red_status_2
