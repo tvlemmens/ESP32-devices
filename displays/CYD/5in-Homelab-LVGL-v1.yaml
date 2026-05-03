@@ -1,0 +1,986 @@
+esphome:
+  name: sdl_5inch
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: ""
+
+# ---------------------------------------------------------------------------
+# FONTS
+# ---------------------------------------------------------------------------
+font:
+  - file: "fonts/Roboto-Medium.ttf"
+    id: font_header
+    size: 28
+    bpp: 4
+  - file: "fonts/Roboto-Medium.ttf"
+    id: font_med
+    size: 20
+    bpp: 4
+  - file: "fonts/Roboto-Light.ttf"
+    id: font_small
+    size: 16
+    bpp: 4
+  - file: "fonts/Roboto-Light.ttf"
+    id: font_tiny
+    size: 13
+    bpp: 4
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: font_icon_lg
+    size: 30
+    bpp: 4
+    glyphs:
+      - "\U000F1C99"  # mdi-server
+
+# ---------------------------------------------------------------------------
+# IMAGES
+# ---------------------------------------------------------------------------
+image:
+  - file: "img/home-assistant.png"
+    id: img_ha
+    type: RGB565
+    resize: 32x32
+  - file: "img/esphome.png"
+    id: img_esp
+    type: RGB565
+    resize: 32x32
+  - file: "img/node-red.png"
+    id: img_nr
+    type: RGB565
+    resize: 32x32
+  - file: "img/matter.png"
+    id: img_matter
+    type: RGB565
+    resize: 32x32
+  - file: "img/mqtt.png"
+    id: img_mqtt
+    type: RGB565
+    resize: 32x32
+  - file: "img/music-assistant.png"
+    id: img_ma
+    type: RGB565
+    resize: 32x32
+
+# ---------------------------------------------------------------------------
+# TIJD
+# ---------------------------------------------------------------------------
+time:
+  - platform: homeassistant
+    id: ha_time
+
+# ---------------------------------------------------------------------------
+# SENSOREN
+# ---------------------------------------------------------------------------
+sensor:
+  - platform: homeassistant
+    id: ubuntu_cpu
+    entity_id: sensor.ubuntu_cpu_usage
+    on_value:
+      then:
+        - lvgl.bar.update:
+            id: bar_cpu
+            value: !lambda "return (int)x;"
+        - lvgl.label.update:
+            id: lbl_cpu_val
+            text: !lambda |-
+              char buf[8];
+              snprintf(buf, sizeof(buf), "%d%%", (int)x);
+              return std::string(buf);
+
+  - platform: homeassistant
+    id: ubuntu_mem
+    entity_id: sensor.ubuntu_memory_usage
+    on_value:
+      then:
+        - lvgl.bar.update:
+            id: bar_ram
+            value: !lambda "return (int)x;"
+        - lvgl.label.update:
+            id: lbl_ram_val
+            text: !lambda |-
+              char buf[16];
+              snprintf(buf, sizeof(buf), "%.1f / 10 GB", x / 10.0f);
+              return std::string(buf);
+
+  - platform: homeassistant
+    id: ubuntu_net_up
+    entity_id: sensor.ubuntu_network_upload
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_net_up
+            text: !lambda |-
+              char buf[12];
+              snprintf(buf, sizeof(buf), "%.1f G", x);
+              return std::string(buf);
+
+  - platform: homeassistant
+    id: ubuntu_net_down
+    entity_id: sensor.ubuntu_network_download
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_net_dn
+            text: !lambda |-
+              char buf[12];
+              snprintf(buf, sizeof(buf), "%.1f G", x);
+              return std::string(buf);
+
+  - platform: homeassistant
+    id: docker_running
+    entity_id: sensor.local_containers_running
+  - platform: homeassistant
+    id: docker_stopped
+    entity_id: sensor.local_containers_stopped
+
+  - platform: homeassistant
+    id: ubuntu_storage
+    entity_id: sensor.ubuntu_disk_usage
+    on_value:
+      then:
+        - lvgl.bar.update:
+            id: bar_storage
+            value: !lambda "return (int)x;"
+        - lvgl.label.update:
+            id: lbl_storage_val
+            text: !lambda |-
+              char buf[8];
+              snprintf(buf, sizeof(buf), "%d%%", (int)x);
+              return std::string(buf);
+
+  - platform: homeassistant
+    id: boss_cpu
+    entity_id: sensor.boss_cpu_usage
+  - platform: homeassistant
+    id: boss_mem
+    entity_id: sensor.boss_memory_usage
+  - platform: homeassistant
+    id: pavilion_cpu
+    entity_id: sensor.pavilion_cup_usage
+  - platform: homeassistant
+    id: pavilion_mem
+    entity_id: sensor.pavilion_memory_usage
+  - platform: homeassistant
+    id: radxa_cpu
+    entity_id: sensor.radxa_cpu_usage
+  - platform: homeassistant
+    id: radxa_mem
+    entity_id: sensor.radxa_memory_usage
+
+binary_sensor:
+  - platform: homeassistant
+    id: ha_status
+    entity_id: binary_sensor.homeassistant_status_2
+    on_state:
+      then:
+        - lvgl.widget.update:
+            id: dot_ha
+            bg_color: !lambda "return x ? lv_color_hex(0x12b76a) : lv_color_hex(0xEB5353);"
+        - lvgl.widget.update:
+            id: card_ha
+            border_color: !lambda "return x ? lv_color_hex(0x12b76a) : lv_color_hex(0xEB5353);"
+
+  - platform: homeassistant
+    id: mqtt_status
+    entity_id: binary_sensor.mosquitto_status_2
+    on_state:
+      then:
+        - lvgl.widget.update:
+            id: dot_mqtt
+            bg_color: !lambda "return x ? lv_color_hex(0x12b76a) : lv_color_hex(0xEB5353);"
+        - lvgl.widget.update:
+            id: card_mqtt
+            border_color: !lambda "return x ? lv_color_hex(0x12b76a) : lv_color_hex(0xEB5353);"
+
+  - platform: homeassistant
+    id: nodered_status
+    entity_id: binary_sensor.node_red_status_2
+    on_state:
+      then:
+        - lvgl.widget.update:
+            id: dot_nr
+            bg_color: !lambda "return x ? lv_color_hex(0x12b76a) : lv_color_hex(0xEB5353);"
+        - lvgl.widget.update:
+            id: card_nr
+            border_color: !lambda "return x ? lv_color_hex(0x12b76a) : lv_color_hex(0xEB5353);"
+
+# ---------------------------------------------------------------------------
+# DISPLAY
+# ---------------------------------------------------------------------------
+display:
+  - platform: sdl
+    dimensions:
+      width: 800
+      height: 480
+    id: my_display
+
+# ---------------------------------------------------------------------------
+# LVGL
+# ---------------------------------------------------------------------------
+lvgl:
+  displays:
+    - my_display
+
+  style_definitions:
+    - id: style_card
+      bg_color: 0x161B22
+      bg_opa: COVER
+      border_color: 0x30363D
+      border_width: 2
+      border_opa: COVER
+      radius: 10
+      pad_all: 0
+      text_color: 0xFFFFFF
+
+    - id: style_bar_bg
+      bg_color: 0x0D1117
+      border_color: 0x30363D
+      border_width: 2
+      radius: 5
+
+    - id: style_bar_ind
+      bg_color: 0x18bef6
+      radius: 5
+
+  bg_color: 0x1a2030
+  bg_opa: COVER
+
+  pages:
+    - id: main_page
+      widgets:
+
+        # ================================================================
+        # HEADER  (800 x 62)
+        # ================================================================
+        - obj:
+            x: 0
+            y: 0
+            width: 800
+            height: 62
+            bg_color: 0x161B22
+            bg_opa: COVER
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            widgets:
+              - label:
+                  x: 16
+                  y: 15
+                  text: "\U000F1C99"
+                  text_font: font_icon_lg
+                  text_color: 0x18bef6
+
+              - label:
+                  x: 54
+                  y: 14
+                  text: "HOMELAB"
+                  text_font: font_header
+                  text_color: 0xFFFFFF
+
+              - label:
+                  x: 210
+                  y: 18
+                  text: "[NODE 01]"
+                  text_font: font_med
+                  text_color: 0x18bef6
+
+              # Klok: vaste x positie, geen align
+              - label:
+                  id: lbl_clock
+                  x: 580
+                  y: 10
+                  width: 200
+                  text: "--:--"
+                  text_font: font_med
+                  text_color: 0xFFFFFF
+
+              - label:
+                  x: 580
+                  y: 36
+                  width: 200
+                  text: "RACK TEMP: 28 C"
+                  text_font: font_tiny
+                  text_color: 0x8B949E
+
+        # Scheiding header
+        - obj:
+            x: 0
+            y: 62
+            width: 800
+            height: 1
+            bg_color: 0x30363D
+            bg_opa: COVER
+            border_width: 0
+            radius: 0
+
+        # ================================================================
+        # LINKER PANEEL  (358 x 417)
+        # ================================================================
+        - obj:
+            x: 0
+            y: 63
+            width: 358
+            height: 417
+            bg_color: 0x1a2030
+            bg_opa: COVER
+            border_width: 0
+            radius: 0
+            pad_left: 16
+            pad_top: 12
+            pad_right: 16
+
+            widgets:
+              - label:
+                  x: 0
+                  y: 0
+                  text: "NODE VITAL SIGNS"
+                  text_font: font_tiny
+                  text_color: 0x18bef6
+
+              # --- CPU ---
+              - obj:
+                  x: 0
+                  y: 22
+                  width: 326
+                  height: 46
+                  bg_opa: 0
+                  border_width: 0
+                  pad_all: 0
+                  widgets:
+                    - label:
+                        x: 0
+                        y: 0
+                        text: "CPU LOAD"
+                        text_font: font_small
+                        text_color: 0xE0E0E0
+                    - label:
+                        id: lbl_cpu_val
+                        x: 260
+                        y: 0
+                        width: 66
+                        text: "64%"
+                        text_font: font_small
+                        text_color: 0xE0E0E0
+                    - bar:
+                        id: bar_cpu
+                        x: 0
+                        y: 24
+                        width: 326
+                        height: 12
+                        value: 64
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          styles: style_bar_ind
+
+              # --- RAM ---
+              - obj:
+                  x: 0
+                  y: 80
+                  width: 326
+                  height: 46
+                  bg_opa: 0
+                  border_width: 0
+                  pad_all: 0
+                  widgets:
+                    - label:
+                        x: 0
+                        y: 0
+                        text: "RAM USE"
+                        text_font: font_small
+                        text_color: 0xE0E0E0
+                    - label:
+                        id: lbl_ram_val
+                        x: 170
+                        y: 0
+                        width: 156
+                        text: "7.1 / 10 GB"
+                        text_font: font_small
+                        text_color: 0xE0E0E0
+                    - bar:
+                        id: bar_ram
+                        x: 0
+                        y: 24
+                        width: 326
+                        height: 12
+                        value: 71
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          styles: style_bar_ind
+
+              # --- STORAGE / ---
+              - obj:
+                  x: 0
+                  y: 138
+                  width: 326
+                  height: 46
+                  bg_opa: 0
+                  border_width: 0
+                  pad_all: 0
+                  widgets:
+                    - label:
+                        x: 0
+                        y: 0
+                        text: "STORAGE /"
+                        text_font: font_small
+                        text_color: 0xE0E0E0
+                    - label:
+                        id: lbl_storage_val
+                        x: 260
+                        y: 0
+                        width: 66
+                        text: "88%"
+                        text_font: font_small
+                        text_color: 0xE0E0E0
+                    - bar:
+                        id: bar_storage
+                        x: 0
+                        y: 24
+                        width: 326
+                        height: 12
+                        value: 88
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          styles: style_bar_ind
+
+              # --- STORAGE /DATA ---
+              - obj:
+                  x: 0
+                  y: 196
+                  width: 326
+                  height: 46
+                  bg_opa: 0
+                  border_width: 0
+                  pad_all: 0
+                  widgets:
+                    - label:
+                        x: 0
+                        y: 0
+                        text: "STORAGE /DATA"
+                        text_font: font_small
+                        text_color: 0xE0E0E0
+                    - label:
+                        x: 170
+                        y: 0
+                        width: 156
+                        text: "4.2 / 10 TB"
+                        text_font: font_small
+                        text_color: 0xE0E0E0
+                    - bar:
+                        id: bar_data
+                        x: 0
+                        y: 24
+                        width: 326
+                        height: 12
+                        value: 42
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          styles: style_bar_ind
+
+              # --- NETWORK ---
+              - label:
+                  x: 0
+                  y: 258
+                  text: "NETWORK (Gbps)"
+                  text_font: font_small
+                  text_color: 0xE0E0E0
+
+              - label:
+                  x: 0
+                  y: 280
+                  text: "UP"
+                  text_font: font_tiny
+                  text_color: 0x8B949E
+
+              - label:
+                  id: lbl_net_up
+                  x: 24
+                  y: 280
+                  width: 130
+                  text: "1.2 G"
+                  text_font: font_tiny
+                  text_color: 0x12b76a
+
+              - label:
+                  x: 163
+                  y: 280
+                  text: "DOWN"
+                  text_font: font_tiny
+                  text_color: 0x8B949E
+
+              - label:
+                  id: lbl_net_dn
+                  x: 200
+                  y: 280
+                  width: 126
+                  text: "3.8 G"
+                  text_font: font_tiny
+                  text_color: 0xEB5353
+
+              # Netwerk UP visueel blok
+              - obj:
+                  x: 0
+                  y: 298
+                  width: 155
+                  height: 70
+                  bg_color: 0x0D1117
+                  bg_opa: COVER
+                  border_color: 0x30363D
+                  border_width: 1
+                  radius: 4
+                  pad_all: 8
+                  widgets:
+                    - label:
+                        x: 0
+                        y: 0
+                        text: "Upload"
+                        text_font: font_tiny
+                        text_color: 0x8B949E
+                    - bar:
+                        id: bar_net_up
+                        x: 0
+                        y: 20
+                        width: 137
+                        height: 10
+                        value: 12
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          bg_color: 0x12b76a
+                          bg_opa: COVER
+                          radius: 4
+                    - bar:
+                        x: 0
+                        y: 36
+                        width: 137
+                        height: 10
+                        value: 18
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          bg_color: 0x0d8f4f
+                          bg_opa: COVER
+                          radius: 4
+                    - bar:
+                        x: 0
+                        y: 52
+                        width: 137
+                        height: 10
+                        value: 9
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          bg_color: 0x12b76a
+                          bg_opa: COVER
+                          radius: 4
+
+              # Netwerk DOWN visueel blok
+              - obj:
+                  x: 163
+                  y: 298
+                  width: 155
+                  height: 70
+                  bg_color: 0x0D1117
+                  bg_opa: COVER
+                  border_color: 0x30363D
+                  border_width: 1
+                  radius: 4
+                  pad_all: 8
+                  widgets:
+                    - label:
+                        x: 0
+                        y: 0
+                        text: "Download"
+                        text_font: font_tiny
+                        text_color: 0x8B949E
+                    - bar:
+                        id: bar_net_dn
+                        x: 0
+                        y: 20
+                        width: 137
+                        height: 10
+                        value: 38
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          bg_color: 0xEB5353
+                          bg_opa: COVER
+                          radius: 4
+                    - bar:
+                        x: 0
+                        y: 36
+                        width: 137
+                        height: 10
+                        value: 45
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          bg_color: 0xb03a3a
+                          bg_opa: COVER
+                          radius: 4
+                    - bar:
+                        x: 0
+                        y: 52
+                        width: 137
+                        height: 10
+                        value: 32
+                        min_value: 0
+                        max_value: 100
+                        styles: style_bar_bg
+                        indicator:
+                          bg_color: 0xEB5353
+                          bg_opa: COVER
+                          radius: 4
+
+        # Verticale scheidingslijn
+        - obj:
+            x: 358
+            y: 63
+            width: 1
+            height: 417
+            bg_color: 0x30363D
+            bg_opa: COVER
+            border_width: 0
+            radius: 0
+
+        # ================================================================
+        # RECHTER PANEEL  (441 x 417)
+        # ================================================================
+        - obj:
+            x: 359
+            y: 63
+            width: 441
+            height: 417
+            bg_color: 0x1a2030
+            bg_opa: COVER
+            border_width: 0
+            radius: 0
+            pad_left: 12
+            pad_top: 12
+            pad_right: 12
+
+            widgets:
+              - label:
+                  x: 0
+                  y: 0
+                  text: "DOCKER STATUS"
+                  text_font: font_tiny
+                  text_color: 0xE0E0E0
+
+              # Card: HA CORE
+              - obj:
+                  id: card_ha
+                  x: 0
+                  y: 24
+                  width: 204
+                  height: 58
+                  styles: style_card
+                  border_color: 0x12b76a
+                  widgets:
+                    - obj:
+                        id: dot_ha
+                        x: 6
+                        y: 21
+                        width: 14
+                        height: 14
+                        radius: 7
+                        bg_color: 0x12b76a
+                        border_width: 0
+                    - image:
+                        x: 26
+                        y: 13
+                        src: img_ha
+                    - label:
+                        x: 66
+                        y: 12
+                        text: "HA CORE"
+                        text_font: font_small
+                        text_color: 0xFFFFFF
+                    - label:
+                        x: 140
+                        y: 5
+                        width: 60
+                        text: "Uptime"
+                        text_font: font_tiny
+                        text_color: 0x8B949E
+                    - label:
+                        x: 140
+                        y: 20
+                        width: 60
+                        text: "5d"
+                        text_font: font_tiny
+                        text_color: 0xFFFFFF
+
+              # Card: NODE-RED
+              - obj:
+                  id: card_nr
+                  x: 0
+                  y: 92
+                  width: 204
+                  height: 58
+                  styles: style_card
+                  border_color: 0x12b76a
+                  widgets:
+                    - obj:
+                        id: dot_nr
+                        x: 6
+                        y: 21
+                        width: 14
+                        height: 14
+                        radius: 7
+                        bg_color: 0x12b76a
+                        border_width: 0
+                    - image:
+                        x: 26
+                        y: 13
+                        src: img_nr
+                    - label:
+                        x: 66
+                        y: 12
+                        text: "NODE-RED"
+                        text_font: font_small
+                        text_color: 0xFFFFFF
+                    - label:
+                        x: 140
+                        y: 5
+                        width: 60
+                        text: "Uptime"
+                        text_font: font_tiny
+                        text_color: 0x8B949E
+                    - label:
+                        x: 140
+                        y: 20
+                        width: 60
+                        text: "5d"
+                        text_font: font_tiny
+                        text_color: 0xFFFFFF
+
+              # Card: MQTT
+              - obj:
+                  id: card_mqtt
+                  x: 0
+                  y: 160
+                  width: 204
+                  height: 58
+                  styles: style_card
+                  border_color: 0x12b76a
+                  widgets:
+                    - obj:
+                        id: dot_mqtt
+                        x: 6
+                        y: 21
+                        width: 14
+                        height: 14
+                        radius: 7
+                        bg_color: 0x12b76a
+                        border_width: 0
+                    - image:
+                        x: 26
+                        y: 13
+                        src: img_mqtt
+                    - label:
+                        x: 66
+                        y: 12
+                        text: "MQTT"
+                        text_font: font_small
+                        text_color: 0xFFFFFF
+                    - label:
+                        x: 140
+                        y: 5
+                        width: 60
+                        text: "Uptime"
+                        text_font: font_tiny
+                        text_color: 0x8B949E
+                    - label:
+                        x: 140
+                        y: 20
+                        width: 60
+                        text: "14h"
+                        text_font: font_tiny
+                        text_color: 0xFFFFFF
+
+              # Card: ESPHOME
+              - obj:
+                  id: card_esp
+                  x: 0
+                  y: 228
+                  width: 204
+                  height: 58
+                  styles: style_card
+                  border_color: 0x12b76a
+                  widgets:
+                    - obj:
+                        x: 6
+                        y: 21
+                        width: 14
+                        height: 14
+                        radius: 7
+                        bg_color: 0x12b76a
+                        border_width: 0
+                    - image:
+                        x: 26
+                        y: 13
+                        src: img_esp
+                    - label:
+                        x: 66
+                        y: 12
+                        text: "ESPHOME"
+                        text_font: font_small
+                        text_color: 0xFFFFFF
+                    - label:
+                        x: 140
+                        y: 5
+                        width: 60
+                        text: "Uptime"
+                        text_font: font_tiny
+                        text_color: 0x8B949E
+                    - label:
+                        x: 140
+                        y: 20
+                        width: 60
+                        text: "14h"
+                        text_font: font_tiny
+                        text_color: 0xFFFFFF
+
+              # Card: MATTER (kolom rechts)
+              - obj:
+                  x: 214
+                  y: 24
+                  width: 204
+                  height: 58
+                  styles: style_card
+                  border_color: 0x12b76a
+                  widgets:
+                    - obj:
+                        x: 6
+                        y: 21
+                        width: 14
+                        height: 14
+                        radius: 7
+                        bg_color: 0x12b76a
+                        border_width: 0
+                    - image:
+                        x: 26
+                        y: 13
+                        src: img_matter
+                    - label:
+                        x: 66
+                        y: 12
+                        text: "MATTER"
+                        text_font: font_small
+                        text_color: 0xFFFFFF
+                    - label:
+                        x: 140
+                        y: 5
+                        width: 60
+                        text: "Uptime"
+                        text_font: font_tiny
+                        text_color: 0x8B949E
+                    - label:
+                        x: 140
+                        y: 20
+                        width: 60
+                        text: "14h"
+                        text_font: font_tiny
+                        text_color: 0xFFFFFF
+
+              # Card: MSC AST
+              - obj:
+                  x: 214
+                  y: 92
+                  width: 204
+                  height: 58
+                  styles: style_card
+                  border_color: 0x12b76a
+                  widgets:
+                    - obj:
+                        x: 6
+                        y: 21
+                        width: 14
+                        height: 14
+                        radius: 7
+                        bg_color: 0x12b76a
+                        border_width: 0
+                    - image:
+                        x: 26
+                        y: 13
+                        src: img_ma
+                    - label:
+                        x: 66
+                        y: 12
+                        text: "MSC AST"
+                        text_font: font_small
+                        text_color: 0xFFFFFF
+                    - label:
+                        x: 140
+                        y: 5
+                        width: 60
+                        text: "Uptime"
+                        text_font: font_tiny
+                        text_color: 0x8B949E
+                    - label:
+                        x: 140
+                        y: 20
+                        width: 60
+                        text: "2d"
+                        text_font: font_tiny
+                        text_color: 0xFFFFFF
+
+              # Lege card
+              - obj:
+                  x: 214
+                  y: 160
+                  width: 204
+                  height: 58
+                  styles: style_card
+                  border_color: 0x30363D
+
+# ---------------------------------------------------------------------------
+# INTERVAL
+# ---------------------------------------------------------------------------
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          float up_val = id(ubuntu_net_up).state;
+          float dn_val = id(ubuntu_net_down).state;
+          if (!std::isnan(up_val)) {
+            int pct = (int)std::min(up_val, 100.0f);
+            lv_bar_set_value(id(bar_net_up), pct, LV_ANIM_ON);
+          }
+          if (!std::isnan(dn_val)) {
+            int pct = (int)std::min(dn_val, 100.0f);
+            lv_bar_set_value(id(bar_net_dn), pct, LV_ANIM_ON);
+          }
+
+  - interval: 30s
+    then:
+      - lambda: |-
+          auto t = id(ha_time).now();
+          if (t.is_valid()) {
+            static const char* months[] = {
+              "JAN","FEB","MAR","APR","MAY","JUN",
+              "JUL","AUG","SEP","OCT","NOV","DEC"
+            };
+            char buf[24];
+            snprintf(buf, sizeof(buf), "%02d:%02d, %02d %s",
+              t.hour, t.minute, t.day_of_month, months[t.month - 1]);
+            lv_label_set_text(id(lbl_clock), buf);
+          }
