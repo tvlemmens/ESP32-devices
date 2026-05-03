@@ -8,7 +8,7 @@ logger:
 
 api:
   encryption:
-    key: "iEbiT/nOW+Jd84G3EvlNLIbgEISujh/jc4ofprBMOOs="
+    key: "TBD"
 
 display:
   - platform: sdl
