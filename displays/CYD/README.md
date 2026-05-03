@@ -42,4 +42,4 @@ https://github.com/RyanEwen/esphome-lvgl/blob/main/devices/ESP32-8048S050.yaml
 
 Hardware info:
 5-inch 800x480 IPS TFT display - ST7262 (Parallel RGB-565 interface) (ST7262 seems to be recurring across sites)
-Capacitive touch panel - GT911 (yet unclear if present on this board)
+No (capacitive) touch panel on my board.
