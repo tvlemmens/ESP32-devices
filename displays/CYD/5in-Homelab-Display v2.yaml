@@ -1,0 +1,218 @@
+esphome:
+  name: sdl_5inch
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: "iEbiT/nOW+Jd84G3EvlNLIbgEISujh/jc4ofprBMOOs="
+
+display:
+  - platform: sdl
+    dimensions:
+      width: 800
+      height: 480
+    auto_clear_enabled: false
+    id: my_display
+
+    lambda: |-
+      // 1. Kleuren
+      // original background: #0D0D0D; switched to #3F3F3F for better contrast
+      auto col_bg     = Color(0x3F3F3F);
+      auto col_card   = Color(0x1A1A1A);
+      auto col_blue   = Color(0x0099FF);
+      auto col_orange = Color(0xFFAA00);
+      auto col_red    = Color(0xFF3300);
+      auto col_green  = Color(0x00FF44);
+      auto col_white  = Color(0xFFFFFF);
+      auto col_gray   = Color(0x262626);
+
+      it.fill(col_bg);
+
+      // --- DUMMY DATA ---
+      float d_cpu = 45.0f;
+      float d_mem = 75.0f;
+      bool ha_ok = true;
+      bool mqtt_ok = false;
+
+      // Helper voor kleur (apart gedefinieerd om fouten te voorkomen)
+      auto get_c = [&](float v) -> Color {
+        if (v > 90.0f) return col_red;
+        if (v > 70.0f) return col_orange;
+        return col_blue;
+      };
+
+      // --- HEADER ---
+      it.printf(20, 15, id(font_header), col_blue, "HOMELAB MONITOR");
+      it.line(0, 55, 800, 55, col_white); //originally col_grey !
+
+
+      // --- KOLOM 1: PROD ---
+      it.printf(20, 75, id(font_med), col_white, "UBUNTU SERVER");
+      
+      // CPU Bar
+      it.printf(20, 115, id(font_tiny), col_white, "CPU USAGE");
+      it.filled_rectangle(20, 135, 220, 20, col_gray); // Background
+      
+      int w_cpu = (int)(2.2 * d_cpu);
+      Color c_cpu = get_c(d_cpu); // Kleur eerst bepalen
+      if (w_cpu > 0) {
+        it.filled_rectangle(20, 135, w_cpu, 20, c_cpu); // Gebruik de vooraf bepaalde kleur
+      }
+      it.printf(245, 135, id(font_small), col_white, "%.0f%%", d_cpu);
+
+      // MEMORY Bar
+      it.printf(20, 185, id(font_tiny), col_white, "MEM USAGE");
+      it.filled_rectangle(20, 205, 220, 20, col_gray); // Background
+      
+      int w_mem = (int)(2.2 * d_mem);
+      Color c_mem = get_c(d_mem); // Kleur eerst bepalen
+      if (w_mem > 0) {
+        it.filled_rectangle(20, 205, w_mem, 20, c_mem); // Gebruik de vooraf bepaalde kleur
+      }
+      it.printf(245, 205, id(font_small), col_white, "%.0f%%", d_mem);
+
+
+      // --- KOLOM 2: DOCKER ---
+      it.printf(280, 75, id(font_med), col_white, "DOCKER STATUS");
+      
+      // Verbeterde Docker Card met betere tekstpositie
+      auto draw_card = [&](int y, const char* icon, std::string name, bool ok) {
+          // Achtergrond
+          it.filled_rectangle(280, y, 235, 50, col_card); 
+          // Icoon kleur bepalen
+          Color ic_c = ok ? col_blue : col_red;
+          // Icoon (iets groter font_icon?)
+          it.printf(295, y + 13, id(font_icon), ic_c, "%s", icon);
+          
+          // Naam - Iets lager (y + 18 ipv + 15) voor betere centrering
+          it.printf(345, y + 18, id(font_small), col_white, "%s", name.c_str());
+          
+          // Status indicator (Rechts bovenin het kaartje)
+          it.filled_circle(500, y + 10, 4, ok ? col_green : col_red);
+      };
+
+      draw_card(120, "\U000F07D0", "Home Assistant", ha_ok);
+      draw_card(180, "\U000F0003", "Mosquitto", mqtt_ok);
+      draw_card(240, "\U000F0EDF", "ESPHome", true);
+      draw_card(300, "\U000F0399", "Node-Red", false);
+      draw_card(360, "\U000F0386", "Music Assistant", true);
+      draw_card(420, "\U000F1C99", "Matter Server", true);
+
+
+      // --- KOLOM 3: HOSTS ---
+      
+      // Verbeterde Host Row
+      auto draw_host = [&](int y, std::string n, float c, float m) {
+          // Naam van de host
+          it.printf(545, y, id(font_small), col_white, "%s", n.c_str());
+          
+          // CPU labeltje boven de balk (optioneel)
+          // it.printf(545, y + 20, id(font_tiny), col_white, "C"); 
+
+          // CPU Balk
+          it.filled_rectangle(545, y + 28, 110, 10, col_gray); 
+          int w_c = (int)(1.1 * c);
+          if (w_c > 0) it.filled_rectangle(545, y + 28, w_c, 10, get_c(c));
+          
+          // MEM Balk
+          it.filled_rectangle(665, y + 28, 110, 10, col_gray); 
+          int w_m = (int)(1.1 * m);
+          if (w_m > 0) it.filled_rectangle(665, y + 28, w_m, 10, col_blue);
+      };
+      
+      draw_host(260, "Ubuntu", 32.0f, 74.0f);
+      draw_host(120, "Boss", 15.0f, 40.0f);
+      draw_host(195, "Pavilion", 64.0f, 60.0f);
+      draw_host(325, "Radxa", 90.0f, 40.0f);
+
+
+
+# Font definities (zorg dat je de .ttf bestanden in je esphome map hebt)
+font:
+  - file: "fonts/Roboto-Medium.ttf"
+    id: font_header
+    size: 32
+  - file: "fonts/Roboto-Medium.ttf"
+    id: font_med
+    size: 24
+  - file: "fonts/Roboto-Light.ttf"
+    id: font_small
+    size: 18
+  - file: "fonts/Roboto-Light.ttf"
+    id: font_tiny
+    size: 14
+
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: font_icon
+    size: 24
+    # Hieronder definieer je welke iconen je in het geheugen laadt (bespaart RAM)
+    glyphs:
+      - "\U000F07D0" # mdi-home-assistant
+      - "\U000F0EDF" # mdi-chip (esphome)
+      - "\U000F0003" # mdi-access-point
+      - "\U000F0399" # mdi-node-red
+      - "\U000F1C99" # mdi-server
+      - "\U000F0386" # mdi-music
+
+
+# Importeer alle sensoren uit HA
+text_sensor:
+  - platform: homeassistant
+    id: esphome_status
+    entity_id: sensor.esphome_state # De HA sensor die "running" teruggeeft
+
+sensor:
+  - platform: homeassistant
+    id: ubuntu_cpu
+    entity_id: sensor.ubuntu_cpu_usage
+  - platform: homeassistant
+    id: ubuntu_mem
+    entity_id: sensor.ubuntu_memory_usage
+  - platform: homeassistant
+    id: ubuntu_net_down
+    entity_id: sensor.ubuntu_network_download
+  - platform: homeassistant
+    id: ubuntu_net_up
+    entity_id: sensor.ubuntu_network_upload
+  - platform: homeassistant
+    id: docker_total
+    entity_id: sensor.local_container_count
+  - platform: homeassistant
+    id: docker_running
+    entity_id: sensor.local_containers_running
+  - platform: homeassistant
+    id: docker_stopped
+    entity_id: sensor.local_containers_stopped
+  - platform: homeassistant
+    id: boss_cpu
+    entity_id: sensor.boss_cpu_usage
+  - platform: homeassistant
+    id: boss_mem
+    entity_id: sensor.boss_memory_usage
+  - platform: homeassistant
+    id: pavilion_cpu
+    entity_id: sensor.pavilion_cup_usage
+  - platform: homeassistant
+    id: pavilion_mem
+    entity_id: sensor.pavilion_memory_usage
+  - platform: homeassistant
+    id: radxa_cpu
+    entity_id: sensor.radxa_cpu_usage
+  - platform: homeassistant
+    id: radxa_mem
+    entity_id: sensor.radxa_memory_usage
+
+binary_sensor:
+  - platform: homeassistant
+    id: ha_status
+    entity_id: binary_sensor.homeassistant_status_2
+  - platform: homeassistant
+    id: mqtt_status
+    entity_id: binary_sensor.mosquitto_status_2
+  - platform: homeassistant
+    id: nodered_status
+    entity_id: binary_sensor.node_red_status_2
