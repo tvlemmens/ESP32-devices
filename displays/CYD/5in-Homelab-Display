@@ -1,0 +1,258 @@
+# First design(s) vibe coded with Gemini AI
+# Based on SDL platform to speedup development
+# Initially using dummy values because of remote development (no connection to HA server)
+
+# Next step: 
+# Enable live connection, update sensors where needed.
+
+esphome:
+  name: sdl_5inch
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: "TBD"
+
+display:
+  - platform: sdl
+    dimensions:
+      width: 800
+      height: 480
+    auto_clear_enabled: false
+    id: my_display
+
+    lambda: |-
+          // --- 1. KLEUREN ---
+          auto col_bg       = Color(0x0D1117);
+          auto col_card     = Color(0x161B22);
+          auto col_border   = Color(0x30363D);
+          auto col_blue     = Color(0x00A3FF);
+          auto col_cyan     = Color(0x00D1FF);
+          auto col_green    = Color(0x3FB950);
+          auto col_red      = Color(0xF85149);
+          auto col_white    = Color(0xFFFFFF); // Toegevoegd zoals gevraagd
+          auto col_text_dim = Color(0x8B949E);
+
+          it.fill(col_bg);
+
+          // --- 2. STATISCHE BUFFERS VOOR GRAFIEKEN ---
+          static float up_buffer[60] = {0};   // 60 data points
+          static float down_buffer[60] = {0};
+          static int tick = 0;
+
+          // Update buffers elke frame (dummy data simulatie)
+          if (++tick > 5) { // Update snelheid vertragen
+            tick = 0;
+            for (int i = 0; i < 59; i++) {
+              up_buffer[i] = up_buffer[i+1];
+              down_buffer[i] = down_buffer[i+1];
+            }
+            // Simuleer realistische netwerkruis
+            up_buffer[59] = clamp(up_buffer[58] + (float)(rand() % 11 - 5), 5.0f, 40.0f);
+            down_buffer[59] = clamp(down_buffer[58] + (float)(rand() % 11 - 5), 10.0f, 50.0f);
+          }
+
+          // --- 3. DATA OPHALEN ---
+          float d_cpu = id(ubuntu_cpu).state;
+          if (std::isnan(d_cpu)) d_cpu = 64.0f; 
+          float d_mem = id(ubuntu_mem).state;
+          if (std::isnan(d_mem)) d_mem = 71.0f;
+
+          // --- 4. HEADER ---
+          it.printf(55, 25, id(font_header), col_white, "HOMELAB [NODE 01]");
+          it.printf(20, 25, id(font_icon), col_blue, "\U000F1C99");
+          it.filled_rectangle(20, 60, 760, 4, col_border); 
+
+          // --- 5. LINKS: VITAL SIGNS ---
+          int lx = 20;
+          auto draw_stat = [&](int y, const char* label, float val, const char* val_str) {
+              it.printf(lx, y, id(font_tiny), col_white, "%s", label);
+              it.printf(lx + 320, y, id(font_tiny), col_white, TextAlign::TOP_RIGHT, "%s", val_str);
+              it.filled_rectangle(lx, y + 22, 320, 14, col_card);
+              it.rectangle(lx, y + 22, 320, 14, col_border);
+              int bar_w = (int)((val / 100.0f) * 320);
+              if(bar_w > 0) {
+                  it.filled_rectangle(lx, y + 22, bar_w, 14, col_blue);
+                  it.line(lx, y + 22, lx + bar_w, y + 22, col_cyan);
+              }
+          };
+
+          draw_stat(90,  "CPU LOAD", d_cpu, "64%");
+          draw_stat(150, "RAM USE", d_mem, "7.1 / 10 GB");
+          draw_stat(210, "STORAGE /", 88.0f, "88%");
+
+          // --- 6. NETWERK GRAFIEKEN (Optie 1) ---
+          it.printf(lx, 275, id(font_tiny), col_white, "NETWORK (Gbps)");
+          
+          auto draw_graph = [&](int x, int y, float* buffer, Color c, const char* label, const char* val) {
+              it.printf(x, y, id(font_tiny), col_text_dim, "%s", label);
+              it.printf(x + 150, y, id(font_tiny), c, TextAlign::TOP_RIGHT, "%s", val);
+              // Teken de lijngrafiek
+              for (int i = 0; i < 59; i++) {
+                  it.line(x + (i*2.5), y + 60 - buffer[i], x + ((i+1)*2.5), y + 60 - buffer[i+1], c);
+              }
+              it.line(x, y + 62, x + 150, y + 62, col_border); // Grondlijn
+          };
+
+          draw_graph(lx, 305, up_buffer, col_green, "UP", "1.2 Gbps");
+          draw_graph(lx + 170, 305, down_buffer, col_red, "DOWN", "3.8 Gbps");
+
+          // --- 7. RECHTS: DOCKER GRID (Met brede statusbalken) ---
+          int rx = 380; 
+          auto draw_fancy_card = [&](int x, int y, esphome::display::BaseImage* img, const char* name, bool ok, const char* uptime) {
+              it.rectangle(x, y, 200, 60, col_border);
+              it.filled_rectangle(x+1, y+1, 198, 58, col_card);
+              
+              Color s_col = ok ? col_green : col_red;
+              it.filled_rectangle(x, y, 24, 60, s_col); // Dubbel zo breed (24px)
+              
+              // LED Bolleke (Groter en gecentreerd)
+              it.filled_circle(x + 12, y + 30, 5, col_card); 
+              it.filled_circle(x + 12, y + 30, 4, col_white); 
+              
+              // it.printf(x + 37, y + 30, id(font_icon), col_white, TextAlign::CENTER_LEFT, "%s", icon);
+              // Add color icon iso mdi icon
+              // it.image(x + 30, y + 15, id(img_esp));
+              if (img != nullptr) {
+                it.image(x + 35, y + 14, img);
+                }
+              it.printf(x + 75, y + 30, id(font_small), col_white, TextAlign::CENTER_LEFT, "%s", name);
+              
+              it.printf(x + 195, y + 5, id(font_tiny), col_text_dim, TextAlign::TOP_RIGHT, "Uptime");
+              it.printf(x + 195, y + 20, id(font_tiny), col_white, TextAlign::TOP_RIGHT, "%s", uptime);
+          };
+
+          draw_fancy_card(rx, 90,  id(img_ha), "HA CORE", id(ha_status).state, "5d");
+          draw_fancy_card(rx, 165, id(img_mqtt), "MQTT", true, "14h");
+          draw_fancy_card(rx, 240, id(img_nr), "NODE-RED", id(mqtt_status).state, "5d");
+
+          draw_fancy_card(rx + 210, 90,  id(img_esp), "ESPHOME", true, "14h");
+          draw_fancy_card(rx + 210, 165, id(img_matter), "MATTER", true, "14h");
+          draw_fancy_card(rx + 210, 240, id(img_ma), "MSC AST", true, "2d");
+
+
+
+
+
+image:
+  - file: "img/mqtt.png"
+    id: img_mqtt
+    type: RGB
+  - file: "img/node-red.png"
+    id: img_nr
+    type: RGB
+  - file: "img/matter.png"
+    id: img_matter
+    type: RGB
+  - file: "img/esphome.png"
+    id: img_esp
+    type: RGB
+  - file: "img/music-assistant.png"
+    id: img_ma
+    type: RGB
+  - file: "img/home-assistant.png"
+    id: img_ha
+    type: RGB
+
+
+# Font definities (zorg dat je de .ttf bestanden in je esphome map hebt)
+font:
+  - file: "fonts/Roboto-Medium.ttf"
+    id: font_header
+    size: 32
+  - file: "fonts/Roboto-Medium.ttf"
+    id: font_med
+    size: 24
+  - file: "fonts/Roboto-Light.ttf"
+    id: font_small
+    size: 18
+  - file: "fonts/Roboto-Light.ttf"
+    id: font_tiny
+    size: 14
+
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: font_icon
+    size: 36
+    # Hieronder definieer je welke iconen je in het geheugen laadt (bespaart RAM)
+    glyphs:
+      - "\U000F07D0" # mdi-home-assistant
+      - "\U000F0EDF" # mdi-chip (esphome)
+      - "\U000F0003" # mdi-access-point
+      - "\U000F0399" # mdi-node-red
+      - "\U000F1C99" # mdi-server
+      - "\U000F0386" # mdi-music
+  - file: "fonts/materialdesignicons-webfont.ttf"
+    id: font_icon_hdr
+    size: 40
+    # Hieronder definieer je welke iconen je in het geheugen laadt (bespaart RAM)
+    glyphs:
+      - "\U000F07D0" # mdi-home-assistant
+      - "\U000F0EDF" # mdi-chip (esphome)
+      - "\U000F0003" # mdi-access-point
+      - "\U000F0399" # mdi-node-red
+      - "\U000F1C99" # mdi-server
+      - "\U000F0386" # mdi-music
+
+
+# Importeer alle sensoren uit HA
+text_sensor:
+  - platform: homeassistant
+    id: esphome_status
+    entity_id: sensor.esphome_state # De HA sensor die "running" teruggeeft
+
+sensor:
+  - platform: homeassistant
+    id: ubuntu_cpu
+    entity_id: sensor.ubuntu_cpu_usage
+  - platform: homeassistant
+    id: ubuntu_mem
+    entity_id: sensor.ubuntu_memory_usage
+  - platform: homeassistant
+    id: ubuntu_net_down
+    entity_id: sensor.ubuntu_network_download
+  - platform: homeassistant
+    id: ubuntu_net_up
+    entity_id: sensor.ubuntu_network_upload
+  - platform: homeassistant
+    id: docker_total
+    entity_id: sensor.local_container_count
+  - platform: homeassistant
+    id: docker_running
+    entity_id: sensor.local_containers_running
+  - platform: homeassistant
+    id: docker_stopped
+    entity_id: sensor.local_containers_stopped
+  - platform: homeassistant
+    id: boss_cpu
+    entity_id: sensor.boss_cpu_usage
+  - platform: homeassistant
+    id: boss_mem
+    entity_id: sensor.boss_memory_usage
+  - platform: homeassistant
+    id: pavilion_cpu
+    entity_id: sensor.pavilion_cup_usage
+  - platform: homeassistant
+    id: pavilion_mem
+    entity_id: sensor.pavilion_memory_usage
+  - platform: homeassistant
+    id: radxa_cpu
+    entity_id: sensor.radxa_cpu_usage
+  - platform: homeassistant
+    id: radxa_mem
+    entity_id: sensor.radxa_memory_usage
+
+binary_sensor:
+  - platform: homeassistant
+    id: ha_status
+    entity_id: binary_sensor.homeassistant_status_2
+  - platform: homeassistant
+    id: mqtt_status
+    entity_id: binary_sensor.mosquitto_status_2
+  - platform: homeassistant
+    id: nodered_status
+    entity_id: binary_sensor.node_red_status_2
+
